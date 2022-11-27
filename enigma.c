@@ -7,9 +7,21 @@ int ALPHABET_SIZE = 6;
 char RT1[] = {2, 4, 1, 5, 3, 0};
 char RF1[] = {3, 5, 4, 0, 2, 1};
 
-char applyRotor(char msgChar)
+char applyRotor(char* rotor, char msgChar)
 {
-  return RT1[msgChar];
+  return rotor[msgChar];
+}
+
+char inverseApplyRotor(char* rotor, char msgChar)
+{
+  for (char i = 0; i < ALPHABET_SIZE; i++)
+  {
+    if (rotor[i] == msgChar)
+    {
+      return i;
+    }
+  }
+  return -1;
 }
 
 void enigma(char *msg)
@@ -19,7 +31,9 @@ void enigma(char *msg)
   while (*msgIt != '\0')
   {
     *gsmIt = *msgIt - 'A';
-    *gsmIt = applyRotor(*gsmIt);
+    *gsmIt = applyRotor(RT1, *gsmIt);
+    *gsmIt = applyRotor(RF1, *gsmIt);
+    *gsmIt = inverseApplyRotor(RT1, *gsmIt);
     *gsmIt = *gsmIt + 'A';
     msgIt++;
     gsmIt++;
