@@ -24,10 +24,10 @@ char inverseApplyRotor(char* rotor, char msgChar)
   return -1;
 }
 
-void enigma(char *msg)
+void enigma(char *msg, char *gsm)
 {
   char *msgIt = msg;
-  char *gsmIt = GSM;
+  char *gsmIt = gsm;
   while (*msgIt != '\0')
   {
     *gsmIt = *msgIt - 'A';
@@ -51,7 +51,9 @@ void printChars(char *msg)
 
 int main()
 {
-  enigma(MSG);
+  enigma(MSG, GSM);
   printChars(GSM);
+  enigma(GSM, MSG);
+  printChars(MSG);
   return 0;
 }
