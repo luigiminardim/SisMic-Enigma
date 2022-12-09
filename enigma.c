@@ -40,37 +40,67 @@ char MSG_DECIFR[] =
 
 // Área de código //////////////////////////////////////////////////////////////////////////////////
 
-char getRotorIndex(char config, char rotation, char msgChar)
+char *allRotors[] = {RT1, RT2, RT3, RT4, RT5};
+char *allReflectors[] = {RF1, RF2, RF3};
+
+char *rotors[] = {NULL, NULL, NULL};
+char configs[] = {0, 0, 0};
+char *reflector = NULL;
+char rotations[] = {0, 0, 0};
+
+char IRT1[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+char IRT2[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+char IRT3[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+char *inverseRotors[] = {IRT1, IRT2, IRT3};
+
+void decodeChave()
 {
-  char rotorIndex = config - rotation + msgChar;
-  while (rotorIndex >= RT_TAM)
-  {
-    rotorIndex -= RT_TAM;
-  }
-  while (rotorIndex < 0)
-  {
-    rotorIndex += RT_TAM;
-  }
-  return rotorIndex;
+  rotors[0] = allRotors[CHAVE[0] - 1];
+  rotors[1] = allRotors[CHAVE[2] - 1];
+  rotors[2] = allRotors[CHAVE[4] - 1];
+  configs[0] = CHAVE[1];
+  configs[1] = CHAVE[3];
+  configs[2] = CHAVE[5];
+  reflector = allReflectors[CHAVE[6] - 1];
 }
 
+char getRotorIndex(char index)
+{
+  while (index >= RT_TAM)
+  {
+    index -= RT_TAM;
+  }
+  while (index < 0)
+  {
+    index += RT_TAM;
+  }
+  return index;
+}
+
+/* gsmChar = rotor[config - rotation + msgChar] */
 char applyRotor(char *rotor, char config, char rotation, char msgChar)
 {
-  char rotorIndex = getRotorIndex(config, rotation, msgChar);
+  char rotorIndex = getRotorIndex(config - rotation + msgChar);
   return rotor[rotorIndex];
 }
 
-char inverseApplyRotor(char *rotor, char config, char rotation, char msgChar)
+void fillInverseRotators()
 {
-  char appliedGsmChar;
-  char gsmChar;
-  for (gsmChar = 0; gsmChar < RT_TAM; gsmChar++)
+  for (int rotorIndex = 0; rotorIndex < 3; rotorIndex++)
   {
-    appliedGsmChar = applyRotor(rotor, config, rotation, gsmChar);
-    if (appliedGsmChar == msgChar)
-      return gsmChar;
+    for (char msgChar = 0; msgChar < RT_TAM; msgChar++)
+    {
+      char gsmChar = rotors[rotorIndex][msgChar];
+      inverseRotors[rotorIndex][gsmChar] = msgChar;
+    }
   }
-  return -1;
+}
+
+/** msgChar = irotor[gsmChar] - config + rotation  */
+char inverseApplyRotor(char *iRotor, char config, char rotation, char gsmChar)
+{
+  char rotorIndex = getRotorIndex(iRotor[gsmChar] - config + rotation);
+  return rotorIndex;
 }
 
 char applyReflector(char *reflector, char msgChar)
@@ -78,7 +108,7 @@ char applyReflector(char *reflector, char msgChar)
   return reflector[msgChar];
 }
 
-void enigma(char *rotors[], char configs[], char *reflector, char *msg, char *gsm)
+void encodeMsg(char *msg, char *gsm)
 {
   char rotations[] = {0, 0, 0};
   char *msgIt = msg;
@@ -100,7 +130,7 @@ void enigma(char *rotors[], char configs[], char *reflector, char *msg, char *gs
     *gsmIt = applyReflector(reflector, *gsmIt);
     for (int i = 2; i >= 0; i--)
     {
-      *gsmIt = inverseApplyRotor(rotors[i], configs[i], rotations[i], *gsmIt);
+      *gsmIt = inverseApplyRotor(inverseRotors[i], configs[i], rotations[i], *gsmIt);
     }
     rotations[0]++;
     if (rotations[0] == RT_TAM)
@@ -124,17 +154,23 @@ void enigma(char *rotors[], char configs[], char *reflector, char *msg, char *gs
   *gsmIt = '\0';
 }
 
+void enigma(char *msg, char *gsm)
+{
+  decodeChave();
+  fillInverseRotators();
+  encodeMsg(msg, gsm);
+}
+
+void lista5()
+{
+  printf("%s\n", MSG_CLARA);
+  enigma(MSG_CLARA, MSG_CIFR);
+  printf("%s\n", MSG_CIFR);
+  enigma(MSG_CIFR, MSG_DECIFR);
+  printf("%s\n", MSG_DECIFR);
+}
+
 int main()
 {
-  char *allRotors[] = {RT1, RT2, RT3, RT4, RT5};
-  char *allReflectors[] = {RF1, RF2, RF3};
-  char *rotors[] = {allRotors[CHAVE[0] - 1], allRotors[CHAVE[2] - 1], allRotors[CHAVE[4] - 1]};
-  char configs[] = {CHAVE[1], CHAVE[3], CHAVE[5]};
-  char *reflector = allReflectors[CHAVE[6] - 1];
-  printf("%s\n", MSG_CLARA);
-  enigma(rotors, configs, reflector, MSG_CLARA, MSG_CIFR);
-  printf("%s\n", MSG_CIFR);
-  enigma(rotors, configs, reflector, MSG_CIFR, MSG_DECIFR);
-  printf("%s\n", MSG_DECIFR);
-  return 0;
+  lista5();
 }
