@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 /** Chave = {A, B, C, D, E, F, G}
  * A = número do rotor à esquerda e B = sua configuração*;
@@ -161,7 +162,7 @@ void enigma(char *msg, char *gsm)
   encodeMsg(msg, gsm);
 }
 
-void lista5()
+void visto1()
 {
   printf("%s\n", MSG_CLARA);
   enigma(MSG_CLARA, MSG_CIFR);
@@ -170,7 +171,53 @@ void lista5()
   printf("%s\n", MSG_DECIFR);
 }
 
+char CHALLENGE_CIFR[] =
+    "CBI MNEXL NOLMBI, GBUKI CS NPVSWR WUYM H YXAXETV MNFI,"
+    " BGVXTIAOB OP YQTR QC JCCKVBY YH GRKFT USPE CI MEZDYU,"
+    " YBQ LC WHBVYRX JK GPEFC O AB FFVAUE.@KFVCKOR\\HUHTM";
+
+void challenge()
+{
+  for (char rot1 = 1; rot1 <= 5; rot1++)
+  {
+    for (char config1 = 0; config1 < RT_TAM; config1++)
+    {
+      for (char rot2 = 2; rot2 <= 5; rot2++)
+      {
+        for (char config2 = 0; config2 < RT_TAM; config2++)
+        {
+          for (char rot3 = 1; rot3 <= 5; rot3++)
+          {
+            for (char config3 = 0; config3 < RT_TAM; config3++)
+            {
+              for (char ref = 1; ref <= 3; ref++)
+              {
+                CHAVE[0] = rot1;
+                CHAVE[1] = config1;
+                CHAVE[2] = rot2;
+                CHAVE[3] = config2;
+                CHAVE[4] = rot3;
+                CHAVE[5] = config3;
+                CHAVE[6] = ref;
+                enigma(CHALLENGE_CIFR, MSG_DECIFR);
+                if (!strcmp("@MACHADO\\ASSIS", MSG_DECIFR + strlen(CHALLENGE_CIFR) - 14))
+                {
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 int main()
 {
-  lista5();
+  printf("%s\n", CHALLENGE_CIFR);
+  challenge();
+  printf("CHAVE: %d,%d,%d,%d,%d,%d,%d\n",
+         CHAVE[0], CHAVE[1], CHAVE[2], CHAVE[3], CHAVE[4], CHAVE[5], CHAVE[6]);
+  printf("%s\n", MSG_DECIFR);
 }
