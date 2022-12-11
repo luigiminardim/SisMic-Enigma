@@ -16,6 +16,8 @@
                                             ; references to current section.
 
 ;-------------------------------------------------------------------------------
+
+
 RESET       mov.w   #__STACK_END,SP         ; Initialize stackpointer
 StopWDT     mov.w   #WDTPW|WDTHOLD,&WDTCTL  ; Stop watchdog timer
 
@@ -24,7 +26,7 @@ StopWDT     mov.w   #WDTPW|WDTHOLD,&WDTCTL  ; Stop watchdog timer
 ; Main loop here
 ;----------------------------------------------------------------------------
 
-VISTO1:
+PREPARE:
 	mov		#ALL_RT,R10						; ALL_RT = {null, RT1, RT2, RT3, RT4, RT5}
 	mov		#RT1,2(R10)
 	mov		#RT2,4(R10)
@@ -36,6 +38,36 @@ VISTO1:
 	mov		#RF1,2(R10)
 	mov		#RF2,4(R10)
 	mov		#RF3,6(R10)
+
+	mov		#IRTS,R10
+	mov		#IRT1,0(R10)
+	mov		#IRT2,2(R10)
+	mov		#IRT3,4(R10)
+
+
+
+VISTO1:
+	mov		#MSG_CLARA,R5					; enigma(MSG_CLARA, MSG_CIFR)
+ 	mov		#MSG_CIFR,R6
+	call 	#ENIGMA
+
+	mov		#MSG_CIFR,R5					; enigma(MSG_CIRF, MSG_DECIRF)
+  	mov		#MSG_DECIFR,R6
+	call 	#ENIGMA
+
+	bis.b	#BIT0,&P1DIR					; P1.out = 1
+	bis.b	#BIT0,&P1OUT
+
+ 	jmp 	$
+ 	NOP
+
+;%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+; Coloque aqui sua sub-rotina ENIGMA %
+;%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+DECODE_CHAVE:
+	push	R10;
+	push	R11;
 
 	mov		#0,R10							; RTS[0] = ALL_RT[CHAVE[0]]
 	add		R10,R10
@@ -86,32 +118,239 @@ VISTO1:
 	add		R10,R10
 	mov		CHAVE(R10),R10
 	add		R10,R10
-	mov		ALL_RF(R10),R9
+	mov		ALL_RF(R10),&REFLECTOR
+
+	pop		R11
+	pop 	R10
+	ret
 
 
 
-	mov		#MSG_CLARA,R5					; enigma(MSG_CLARA, MSG_CIFR, RTS, CONFIGS, reflector)
- 	mov		#MSG_CIFR,R6
- 	mov		#RTS,R7
- 	mov		#CONFIGS,R8
- 	mov		R9,R9
-	call 	#ENIGMA
+FILL_IRT:	; fillIrt()
+	push	R10
+	push	R11
+	push	R12
+	push 	R13
 
-	mov		#MSG_CIFR,R5					; enigma(MSG_CIRF, MSG_DECIRF, RTS, CONFIGS, reflector)
-  mov		#MSG_DECIFR,R6
-	call 	#ENIGMA
+	mov		#0,R10							; for(rotorIndex = 0; rotorIndex < 3; rotorIndex++)
+FILL_IRT_FOR_ROTOR:
+	cmp		#6,R10
+	jeq		FILL_IRT_FOR_ROTOR_END
 
-	bis.b	#BIT0,&P1DIR					; P1.out = 1
-	bis.b	#BIT0,&P1OUT
+	mov		#0,R11							; for(msgChar = 0; msgChar < RT_TAM; msgChar++)
+FILL_IRT_FOR_CHAR:
+	cmp		&RT_TAM,R11
+	jeq		FILL_IRT_FOR_CHAR_END
 
- 	jmp 	$
- 	NOP
+	mov		RTS(R10),R12					; gsmChar = RTS[rotorIndex][msgChar]
+	add		R11,R12
+	mov.b	0(R12),R12
 
-;%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-; Coloque aqui sua sub-rotina ENIGMA %
-;%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	mov		IRTS(R10),R13					; IRTS[rotorIndex][gsmChar] = msgChar
+	add		R12,R13
+	mov.b	R11,0(R13)
 
-ENIGMA: ; enigma(byte* msg = R5, byte* gsm = R6, byte* rotors[] = R7, byte configs[] = R8, byte* reflector = R9)
+	inc		R11
+	jmp		FILL_IRT_FOR_CHAR
+FILL_IRT_FOR_CHAR_END:
+
+	incd	R10
+	jmp		FILL_IRT_FOR_ROTOR
+FILL_IRT_FOR_ROTOR_END:
+
+	pop		R13
+	pop		R12
+	pop		R11
+	pop		R10
+	ret
+
+
+
+MOD_RT_TAM: ; modRtTam(byte index = R5) -> R5: byte
+	cmp		#0,R5
+	jn		MOD_RT_TAM_ADD
+	cmp		&RT_TAM,R5
+	jhs		MOD_RT_TAM_SUB
+	ret
+MOD_RT_TAM_ADD:
+	add		&RT_TAM,R5
+	jmp		MOD_RT_TAM
+MOD_RT_TAM_SUB:
+	sub		&RT_TAM,R5
+	jmp		MOD_RT_TAM
+
+
+
+APPLY_ROTOR: ; applyRotor(byte *rotor = R5, byte config = R6, byte rotation = R7, byte msgChar = R8) -> R5: byte
+	push	R10
+
+	mov		R5,R10							; byte *rotor = R5
+
+	mov		R6,R5							; return rotor[modRtTam(config - rotation + msgChar)])
+	sub		R7,R5
+	add		R8,R5
+	call	#MOD_RT_TAM
+	add		R10,R5
+	mov.b	0(R5),R5
+
+	pop		R10
+	ret
+
+
+
+APPLY_REFLECTOR: ; applyReflector(byte msgChar) -> R5: byte
+	add		&REFLECTOR,R5
+	mov.b	0(R5),R5
+	ret
+
+
+
+APPLY_IROTOR: ; inverseApplyRotor(byte *iRotor = R5, byte config = R6, byte rotation = R7, byte gsmChar = R8) -> R5: byte
+	add		R8,R5							; return getRotorIndex(iRotor[gsmChar] - config + rotation)
+	mov.b	0(R5),R5
+	sub		R6,R5
+	add		R7,R5
+	call	#MOD_RT_TAM
+
+	ret
+
+
+
+ENCODE_MSG: ; encode(byte* msg = R5, byte* gsm = R6)
+	push	R5
+	push	R10
+	push	R11
+	push	R12
+
+	mov		#ROTATIONS,R10
+	mov.b	#0,0(R10)						; rotations = {0, 0, 0}
+	mov.b	#0,1(R10)
+	mov.b	#0,2(R10)
+
+	mov		R5,R10							; byte *msgIt = msg;
+
+	mov		R6,R11							; byte *gsmIt = gsm;
+
+ENCODE_MSG_WHILE_MSGIT:						; while(*msgIt !== '\0')
+	cmp.b	#0,0(R10)
+	jeq 	ENCODE_MSG_WHILE_MSGIT_END
+
+	cmp.b	#'A',0(R10)						; if (*msgIt < 'A' || *msgIt > 'Z')
+	jlo		ENCODE_MSG_IF_NOTCHAR
+	cmp.b	#'Z',0(R10)
+	jlo		ENCODE_MSG_IF_NOTCHAR_END
+	jeq		ENCODE_MSG_IF_NOTCHAR_END
+ENCODE_MSG_IF_NOTCHAR:
+
+	mov.b	0(R10),0(R11)					; *gsmIt = *msgIt
+
+	inc		R10								; msgIt++
+
+	inc		R11								; gsmIt++
+
+	jmp		ENCODE_MSG_WHILE_MSGIT			; continue
+
+ENCODE_MSG_IF_NOTCHAR_END:
+
+	mov.b	0(R10),0(R11)					; *gsmIt = *msgIt - 'A'
+	sub.b	#'A',0(R11)
+
+	mov		#0,R12							; for (int i = 0; i < 3; i++)
+ENCODE_MSG_FOR_RT:
+	cmp		#3,R12
+	jhs		ENCODE_MSG_FOR_RT_END
+
+	mov		#RTS,R5						; *gsmIt = applyRotor(rotors[i], configs[i], rotations[i], *gsmIt)
+	add		R12,R5
+	add		R12,R5
+	mov		0(R5),R5
+	mov		#CONFIGS,R6
+	add		R12,R6
+	mov.b	0(R6),R6
+	mov		#ROTATIONS,R7
+	add		R12,R7
+	mov.b	0(R7),R7
+	mov.b	0(R11),R8
+	call	#APPLY_ROTOR
+	mov.b		R5,0(R11)
+
+	inc		R12
+	jmp		ENCODE_MSG_FOR_RT
+ENCODE_MSG_FOR_RT_END:
+
+	mov.b	0(R11),R5						; *gsmIt = applyReflector(*gsmIt);
+	call	#APPLY_REFLECTOR
+	mov.b	R5,0(R11)
+
+	mov		#2,R12
+ENCODE_MSG_FOR_IRT:
+	tst		R12
+	jn		ENCODE_MSG_FOR_IRT_END
+
+	mov		#IRTS,R5						; *gsmIt = inverseApplyRotor(inverseRotors[i], configs[i], rotations[i], *gsmIt);
+	add		R12,R5
+	add		R12,R5
+	mov		0(R5),R5
+	mov		#CONFIGS,R6
+	add		R12,R6
+	mov.b	0(R6),R6
+	mov		#ROTATIONS,R7
+	add		R12,R7
+	mov.b	0(R7),R7
+	mov.b	0(R11),R8
+	call	#APPLY_IROTOR
+	mov.b		R5,0(R11)
+
+	dec		R12
+	jmp		ENCODE_MSG_FOR_IRT
+ENCODE_MSG_FOR_IRT_END:
+
+	add.b	#'A',0(R11)						; *gsmIt = *gsmIt + 'A'
+
+	mov		#ROTATIONS,R12					; rotations[0]++
+	inc.b	0(R12)
+
+	cmp.b	&RT_TAM,0(R12)					; if (rotations[0] >= RT_TAM) { rotations[1]++; rotations[0] = 0 }
+	jlo		ROTATION0_END
+	inc.b	1(R12)
+	mov.b	#0,0(R12)
+ROTATION0_END:
+
+	cmp.b	&RT_TAM,1(R12)					; if (rotations[1] >= RT_TAM) { rotations[2]++; rotations[1] = 0 }
+	jlo		ROTATION1_END
+	inc.b	2(R12)
+	mov.b	#0,1(R12)
+ROTATION1_END:
+
+	cmp.b	&RT_TAM,2(R12)					; if (rotations[2] >= RT_TAM) { rotations[2] = 0 }
+	jlo		ROTATION2_END
+	mov.b 	#0,2(R12)
+ROTATION2_END:
+
+    inc		R10								; msgIt++;
+
+    inc		R11								; gsmIt++;
+
+	jmp		ENCODE_MSG_WHILE_MSGIT
+ENCODE_MSG_WHILE_MSGIT_END:
+
+	mov.b	#0,0(R11)							; *gsmIt = '\0'
+
+	pop	R5
+	pop R12
+	pop R11
+	pop R10
+	ret
+
+
+
+ENIGMA: ; enigma(byte* msg = R5, byte* gsm = R6)
+	call 	#DECODE_CHAVE
+	call	#FILL_IRT
+
+	mov		R5,R5
+	mov		R6,R6
+	call	#ENCODE_MSG
 	ret
 
 
@@ -188,6 +427,14 @@ ALL_RF: 	.word 0,0,0,0
 
 RTS:		.word 0,0,0
 CONFIGS:	.byte 0,0,0
+REFLECTOR: 	.word 0
+
+IRT1:		.byte -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+IRT2:		.byte -2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2
+IRT3:		.byte -3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3
+IRTS:		.word 0,0,0
+
+ROTATIONS:	.byte -1,-1,-1
 
 ;-------------------------------------------------------------------------------
 ; Stack Pointer definition

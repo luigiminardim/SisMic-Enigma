@@ -104,7 +104,7 @@ char inverseApplyRotor(char *iRotor, char config, char rotation, char gsmChar)
   return rotorIndex;
 }
 
-char applyReflector(char *reflector, char msgChar)
+char applyReflector(char msgChar)
 {
   return reflector[msgChar];
 }
@@ -128,7 +128,7 @@ void encodeMsg(char *msg, char *gsm)
     {
       *gsmIt = applyRotor(rotors[i], configs[i], rotations[i], *gsmIt);
     }
-    *gsmIt = applyReflector(reflector, *gsmIt);
+    *gsmIt = applyReflector(*gsmIt);
     for (int i = 2; i >= 0; i--)
     {
       *gsmIt = inverseApplyRotor(inverseRotors[i], configs[i], rotations[i], *gsmIt);
@@ -178,6 +178,7 @@ char CHALLENGE_CIFR[] =
 
 void challenge()
 {
+  printf("%s\n", CHALLENGE_CIFR);
   for (char rot1 = 1; rot1 <= 5; rot1++)
   {
     for (char config1 = 0; config1 < RT_TAM; config1++)
@@ -202,6 +203,9 @@ void challenge()
                 enigma(CHALLENGE_CIFR, MSG_DECIFR);
                 if (!strcmp("@MACHADO\\ASSIS", MSG_DECIFR + strlen(CHALLENGE_CIFR) - 14))
                 {
+                  printf("CHAVE: %d,%d,%d,%d,%d,%d,%d\n",
+                         CHAVE[0], CHAVE[1], CHAVE[2], CHAVE[3], CHAVE[4], CHAVE[5], CHAVE[6]);
+                  printf("%s\n", MSG_DECIFR);
                   return;
                 }
               }
@@ -215,9 +219,5 @@ void challenge()
 
 int main()
 {
-  printf("%s\n", CHALLENGE_CIFR);
-  challenge();
-  printf("CHAVE: %d,%d,%d,%d,%d,%d,%d\n",
-         CHAVE[0], CHAVE[1], CHAVE[2], CHAVE[3], CHAVE[4], CHAVE[5], CHAVE[6]);
-  printf("%s\n", MSG_DECIFR);
+  visto1();
 }
