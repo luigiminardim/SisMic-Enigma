@@ -44,7 +44,14 @@ PREPARE:
 	mov		#IRT2,2(R10)
 	mov		#IRT3,4(R10)
 
+	call	#DESAFIO
+	mov		#CHAVE,R5
+	mov		#MSG_DECIFR_DESAFIO,R6
+	bis.b	#BIT0,&P1DIR					; P1.out = 1
+	bis.b	#BIT0,&P1OUT
 
+ 	jmp 	$
+ 	NOP
 
 VISTO1:
 	mov		#MSG_CLARA,R5					; enigma(MSG_CLARA, MSG_CIFR)
@@ -336,10 +343,10 @@ ENCODE_MSG_WHILE_MSGIT_END:
 
 	mov.b	#0,0(R11)							; *gsmIt = '\0'
 
-	pop	R5
-	pop R12
+	pop	R12
 	pop R11
 	pop R10
+	pop R5
 	ret
 
 
@@ -354,18 +361,137 @@ ENIGMA: ; enigma(byte* msg = R5, byte* gsm = R6)
 	ret
 
 
-*********************************
-****** Área de dados ******
-*********************************
+HAS_SIGNATURE: ; hasSignature(byte* msg = R5)
+HAS_SIGNATURE_WHILE_NOTEND:
+	cmp.b	#0,0(R5)
+	jeq		HAS_SIGNATURE_WHILE_NOTEND_END
+
+	inc		R5
+	jmp 	HAS_SIGNATURE_WHILE_NOTEND
+HAS_SIGNATURE_WHILE_NOTEND_END:
+	sub			#14,R5
+	cmp.b		#'@',0(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'M',1(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'A',2(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'C',3(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'H',4(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'A',5(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'D',6(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'O',7(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'\',8(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'A',9(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'S',10(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'S',11(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'I',12(R5)
+	jnz		HAS_SIGNATURE_FALSE
+	cmp.b		#'S',13(R5)
+	jnz		HAS_SIGNATURE_FALSE
+
+	mov		#1,R5
+	ret
+
+HAS_SIGNATURE_FALSE:
+	mov		#0,R5
+	ret
 
 
-; Chave = A, B, C, D, E, F, G
-;A = número do rotor à esquerda e B = sua configuração;
-;C = número do rotor central e D = sua configuração;
-;E = número do rotor à direita e F = sua configuração;
-;G = número do refletor.
-; A B C D E F G
-CHAVE: .word 2,4, 5,8, 3,3, 2 ;<<<===========
+
+DESAFIO:
+	push	R10
+	mov		#CHAVE,R10
+
+	mov		#1,0(R10)
+DESAFIO_FOR_ROT1:
+	cmp		#6,0(R10)
+	jhs		DESAFIO_FOR_ROT1_END
+
+	mov		#0,2(R10)
+DESAFIO_FOR_CONFIG1:
+	cmp		2(R10),&RT_TAM
+	jeq		DESAFIO_FOR_CONFIG1_END
+
+	mov		#1,4(R10)
+DESAFIO_FOR_ROT2:
+	cmp		#6,4(R10)
+	jhs		DESAFIO_FOR_ROT2_END
+
+	mov		#0,6(R10)
+DESAFIO_FOR_CONFIG2:
+	cmp		6(R10),&RT_TAM
+	jeq		DESAFIO_FOR_CONFIG2_END
+
+	mov		#1,8(R10)
+DESAFIO_FOR_ROT3:
+	cmp		#6,8(R10)
+	jhs		DESAFIO_FOR_ROT3_END
+
+	mov		#0,10(R10)
+DESAFIO_FOR_CONFIG3:
+	cmp		10(R10),&RT_TAM
+	jeq		DESAFIO_FOR_CONFIG3_END
+
+	mov		#1,12(R10)
+DESAFIO_FOR_REF:
+	cmp		#4,12(R10)
+	jhs		DESAFIO_FOR_REF_END
+
+	mov		#MSG_CIFR_DESAFIO_TESTE,R5
+	mov		#MSG_DECIFR_DESAFIO,R6
+	call	#ENIGMA
+
+	mov		#MSG_DECIFR_DESAFIO,R5
+	call 	#HAS_SIGNATURE
+
+	cmp		#0,R5
+	jeq		DESAFIO_ELSE
+	jmp		DESAFIO_RETURN
+DESAFIO_ELSE:
+
+	inc		12(R10)
+	jmp		DESAFIO_FOR_REF
+DESAFIO_FOR_REF_END:
+
+	inc		10(R10)
+	jmp		DESAFIO_FOR_CONFIG3
+DESAFIO_FOR_CONFIG3_END:
+
+	inc		8(R10)
+	jmp		DESAFIO_FOR_ROT3
+DESAFIO_FOR_ROT3_END:
+
+	inc		6(R10)
+	jmp		DESAFIO_FOR_CONFIG2
+DESAFIO_FOR_CONFIG2_END:
+
+	inc		4(R10)
+	jmp		DESAFIO_FOR_ROT2
+DESAFIO_FOR_ROT2_END:
+
+	inc		2(R10)
+	jmp		DESAFIO_FOR_CONFIG1
+DESAFIO_FOR_CONFIG1_END:
+
+	inc		0(R10)
+	jmp		DESAFIO_FOR_ROT1
+DESAFIO_FOR_ROT1_END:
+
+DESAFIO_RETURN:
+	pop 	R10
+	ret
+
+
 
 ***********************************************
 *** Área dos dados do Enigma. Não os altere ***
@@ -417,6 +543,27 @@ MSG_DECIFR:
  .byte "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
  .byte "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",0
 
+MSG_CIFR_DESAFIO_TESTE:
+	.byte "TFY QRRQI ABTUSM, OJRUQ GI VZLNKZ NKPN B OWQCXUE STEY, ULPLXDONV BC LWPN SV XOISHOA KI CZLWF GLQQ VM CXMUTQ, MWH MQ ZNLSCKW BC WKVWX N AB FUQMBX.@ZNEXRAR\MPXFV",0
+
+MSG_CIFR_DESAFIO:
+	.byte "CBI MNEXL NOLMBI, GBUKI CS NPVSWR WUYM H YXAXETV MNFI,"
+	.byte " BGVXTIAOB OP YQTR QC JCCKVBY YH GRKFT USPE CI MEZDYU,"
+	.byte " YBQ LC WHBVYRX JK GPEFC O AB FFVAUE.@KFVCKOR\HUHTM",0
+
+MSG_DECIFR_DESAFIO:
+	.byte "00000000000000000000000000000000000000000000000000000,"
+	.byte "000000000000000000000000000000000000000000000000000000"
+	.byte "000000000000000000000000000000000000000000000000000000",0
+
+; Chave = A, B, C, D, E, F, G
+;A = número do rotor à esquerda e B = sua configuração;
+;C = número do rotor central e D = sua configuração;
+;E = número do rotor à direita e F = sua configuração;
+;G = número do refletor.
+; A B C D E F G
+CHAVE: .word 2,4, 5,8, 3,3, 2 ;<<<===========
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Coloque aqui suas Variáveis ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -447,4 +594,3 @@ ROTATIONS:	.byte -1,-1,-1
 ;-------------------------------------------------------------------------------
             .sect   ".reset"                ; MSP430 RESET Vector
             .short  RESET
-            
